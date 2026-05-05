@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -140,6 +141,31 @@ PRODUCTS = {
 }
 
 
+def _get_payment_provider_token_mode(token: str) -> str:
+    """Определяет режим provider token без раскрытия секрета."""
+    normalized_token = token.upper()
+    if ":TEST:" in normalized_token:
+        return "test"
+    if ":LIVE:" in normalized_token:
+        return "live"
+    return "unknown"
+
+
+def _log_payment_provider_token_mode(token: str) -> None:
+    mode = _get_payment_provider_token_mode(token)
+    if mode == "test":
+        logging.info("Приложение запущено с тестовым платежным provider token")
+        return
+    if mode == "live":
+        logging.info("Приложение запущено с боевым платежным provider token")
+        return
+
+    logging.warning(
+        "Не удалось определить режим платежного provider token: "
+        "ожидается маркер TEST или LIVE в токене из BotFather"
+    )
+
+
 def _get_required_env(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
@@ -161,6 +187,7 @@ def load_settings() -> Settings:
     """Загружает настройки из переменных окружения."""
     bot_token = _get_required_env("BOT_TOKEN")
     payment_provider_token = _get_required_env("PAYMENT_PROVIDER_TOKEN")
+    _log_payment_provider_token_mode(payment_provider_token)
     admin_chat_id = _get_optional_int_env("ADMIN_CHAT_ID")
 
     yookassa_receipt = ReceiptSettings(
