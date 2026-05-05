@@ -127,10 +127,12 @@ async def process_order_confirm(_, __, manager: DialogManager):
             )
 
         await manager.event.bot.send_invoice(**invoice_kwargs)
-    except Exception as exc:
+    except Exception:
         logger.exception("Failed to send Telegram invoice")
         await manager.event.answer(
-            "Не удалось сформировать счет на оплату. Проверьте данные и попробуйте снова."
+            "Не удалось сформировать счет на оплату. "
+            "Если появилась ошибка PROVIDER_ACCOUNT_TIMEOUT, попробуйте позже "
+            "или нажмите «Связаться с администратором»."
         )
         return
 
@@ -183,6 +185,36 @@ async def process_successful_payment(
     await dialog_manager.switch_to(PaymentSG.done)
 
 
+async def contact_admin(_, __, manager: DialogManager):
+    event = manager.event
+    user = getattr(event, "from_user", None)
+    admin_chat_id = (
+        payment_settings.admin_chat_id if payment_settings is not None else None
+    )
+
+    if admin_chat_id is None:
+        await event.answer(
+            "Администратор пока не указан. Попробуйте оплатить позже или вернитесь назад."
+        )
+        return
+
+    user_link = f"@{user.username}" if user and user.username else "без username"
+    user_id = user.id if user is not None else "неизвестен"
+    product_id = manager.start_data.get("product_id")
+
+    await event.bot.send_message(
+        admin_chat_id,
+        "Покупателю нужна помощь с оплатой.\n"
+        f"User ID: {user_id}\n"
+        f"Username: {user_link}\n"
+        f"Product ID: {product_id or 'неизвестен'}",
+    )
+    await event.answer(
+        "Передала запрос администратору. Оплата не считается завершенной, "
+        "пока Telegram не пришлет подтверждение successful_payment."
+    )
+
+
 async def back_to_delivery_input(_, __, manager: DialogManager):
     await manager.start(
         DeliverySG.full_name_input,
@@ -196,9 +228,18 @@ async def to_start(_, __, manager: DialogManager):
 
 payment_dialog = Dialog(
     Window(
-        Const("Проверьте данные и подтвердите заказ:"),
+        Const(
+            "Проверьте данные и подтвердите заказ:\n\n"
+            "Если окно оплаты не загрузилось или появилась ошибка "
+            "PROVIDER_ACCOUNT_TIMEOUT, напишите администратору или попробуйте позже."
+        ),
         Button(
             Const("Оформить заказ"), id="confirm_order", on_click=process_order_confirm
+        ),
+        Button(
+            Const("Связаться с администратором"),
+            id="contact_admin",
+            on_click=contact_admin,
         ),
         Button(
             Const("Назад"), id="back_delivery_input", on_click=back_to_delivery_input
