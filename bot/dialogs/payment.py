@@ -109,6 +109,9 @@ async def process_order_confirm(_, __, manager: DialogManager):
             prices=[
                 LabeledPrice(label=product["name"], amount=product["price_new"] * 100),
             ],
+            # Данные доставки уже собираются вручную в delivery_dialog, поэтому
+            # Telegram shipping_query и адрес доставки в invoice не запрашиваем.
+            need_shipping_address=False,
             need_email=True,
             send_email_to_provider=True,
             provider_data=json.dumps(
