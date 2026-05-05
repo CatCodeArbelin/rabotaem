@@ -46,9 +46,18 @@ class Order:
     delivery_data: str
     payment_type: str
     created_at: str
-    status: str = "pending_payment"
-    provider_payment_charge_id: str | None = None
-    telegram_payment_charge_id: str | None = None
+    payment_status: str = "pending_payment"
     invoice_payload: str | None = None
+    telegram_payment_charge_id: str | None = None
+    provider_payment_charge_id: str | None = None
     payment_total_amount: int | None = None
     payment_currency: str | None = None
+
+    @property
+    def status(self) -> str:
+        """Обратная совместимость для старого имени статуса оплаты."""
+        return self.payment_status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        self.payment_status = value

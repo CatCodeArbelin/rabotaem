@@ -44,7 +44,7 @@ class NotificationService:
             "• Данные:\n"
             f"{delivery_data_formatted}\n\n"
             "Оплата:\n"
-            f"• Статус: {order.status}\n"
+            f"• Статус: {order.payment_status}\n"
             f"• Способ: {order.payment_type}\n"
             f"• Сумма: {payment_amount}\n"
             f"• YooKassa transaction ID: {provider_charge_id}\n"
