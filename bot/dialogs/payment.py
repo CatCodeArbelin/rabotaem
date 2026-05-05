@@ -94,7 +94,7 @@ async def process_order_confirm(_, __, manager: DialogManager):
         order = _build_order(manager, "Telegram/YooKassa")
         payload = _build_order_payload(manager, order)
         order.invoice_payload = payload
-        order.status = "pending_payment"
+        order.payment_status = "pending_payment"
         if order_service is not None:
             order_service.create_order(order)
         pending_orders[payload] = order
@@ -135,7 +135,7 @@ def has_pending_order_payload(payload: str | None) -> bool:
         return False
 
     order = order_service.get_order_by_invoice_payload(payload)
-    return order is not None and order.status == "pending_payment"
+    return order is not None and order.payment_status == "pending_payment"
 
 
 async def process_successful_payment(

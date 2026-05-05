@@ -27,7 +27,7 @@ class OrderService:
 
     def mark_order_paid(self, order: Order, payment_details: PaymentDetails) -> None:
         """Обновляет заказ данными успешного платежа."""
-        order.status = "paid"
+        order.payment_status = "paid"
         order.payment_type = "Telegram/YooKassa"
         order.provider_payment_charge_id = payment_details.provider_payment_charge_id
         order.telegram_payment_charge_id = payment_details.telegram_payment_charge_id

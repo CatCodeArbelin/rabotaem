@@ -30,7 +30,13 @@ class SQLiteDatabase:
                     delivery_type TEXT NOT NULL,
                     delivery_data TEXT NOT NULL,
                     payment_type TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    payment_status TEXT NOT NULL DEFAULT 'pending_payment',
+                    invoice_payload TEXT,
+                    telegram_payment_charge_id TEXT,
+                    provider_payment_charge_id TEXT,
+                    payment_total_amount INTEGER,
+                    payment_currency TEXT
                 )
                 """
             )
@@ -50,10 +56,10 @@ class SQLiteDatabase:
             row["name"] for row in conn.execute("PRAGMA table_info(orders)").fetchall()
         }
         migrations = {
-            "status": "TEXT NOT NULL DEFAULT 'pending_payment'",
-            "provider_payment_charge_id": "TEXT",
-            "telegram_payment_charge_id": "TEXT",
+            "payment_status": "TEXT NOT NULL DEFAULT 'pending_payment'",
             "invoice_payload": "TEXT",
+            "telegram_payment_charge_id": "TEXT",
+            "provider_payment_charge_id": "TEXT",
             "payment_total_amount": "INTEGER",
             "payment_currency": "TEXT",
         }
@@ -64,9 +70,20 @@ class SQLiteDatabase:
                     f"ALTER TABLE orders ADD COLUMN {column_name} {column_definition}"
                 )
 
+        if "status" in existing_columns and "payment_status" not in existing_columns:
+            conn.execute(
+                """
+                UPDATE orders
+                SET payment_status = COALESCE(status, payment_status)
+                """
+            )
+
     def save_order(self, order_data: dict) -> None:
         with self._get_connection() as conn:
             invoice_payload = order_data.get("invoice_payload")
+            payment_status = order_data.get(
+                "payment_status", order_data.get("status", "pending_payment")
+            )
             if invoice_payload:
                 existing_order = conn.execute(
                     "SELECT id FROM orders WHERE invoice_payload = ?",
@@ -86,9 +103,10 @@ class SQLiteDatabase:
                             delivery_data = ?,
                             payment_type = ?,
                             created_at = ?,
-                            status = ?,
-                            provider_payment_charge_id = ?,
+                            payment_status = ?,
+                            invoice_payload = ?,
                             telegram_payment_charge_id = ?,
+                            provider_payment_charge_id = ?,
                             payment_total_amount = ?,
                             payment_currency = ?
                         WHERE invoice_payload = ?
@@ -104,9 +122,10 @@ class SQLiteDatabase:
                             order_data["delivery_data"],
                             order_data["payment_type"],
                             order_data["created_at"],
-                            order_data.get("status", "pending_payment"),
-                            order_data.get("provider_payment_charge_id"),
+                            payment_status,
+                            invoice_payload,
                             order_data.get("telegram_payment_charge_id"),
+                            order_data.get("provider_payment_charge_id"),
                             order_data.get("payment_total_amount"),
                             order_data.get("payment_currency"),
                             invoice_payload,
@@ -128,10 +147,10 @@ class SQLiteDatabase:
                     delivery_data,
                     payment_type,
                     created_at,
-                    status,
-                    provider_payment_charge_id,
-                    telegram_payment_charge_id,
+                    payment_status,
                     invoice_payload,
+                    telegram_payment_charge_id,
+                    provider_payment_charge_id,
                     payment_total_amount,
                     payment_currency
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -147,10 +166,10 @@ class SQLiteDatabase:
                     order_data["delivery_data"],
                     order_data["payment_type"],
                     order_data["created_at"],
-                    order_data.get("status", "pending_payment"),
-                    order_data.get("provider_payment_charge_id"),
-                    order_data.get("telegram_payment_charge_id"),
+                    payment_status,
                     invoice_payload,
+                    order_data.get("telegram_payment_charge_id"),
+                    order_data.get("provider_payment_charge_id"),
                     order_data.get("payment_total_amount"),
                     order_data.get("payment_currency"),
                 ),
