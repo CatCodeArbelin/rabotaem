@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -16,10 +16,17 @@ from bot.dialogs import (
     payment_dialog,
     product_dialog,
 )
-from bot.dialogs.payment import set_notification_service, set_order_service
+from bot.dialogs.payment import (
+    pre_checkout_handler,
+    set_notification_service,
+    set_order_service,
+    set_payment_settings,
+    successful_payment_handler,
+)
 from bot.dialogs.states import MainMenuSG
 from bot.services.notification_service import NotificationService
 from bot.services.order_service import OrderService
+
 
 async def start_handler(message: Message, dialog_manager: DialogManager):
     await dialog_manager.start(MainMenuSG.start)
@@ -45,8 +52,11 @@ async def main():
     notification_service = NotificationService(settings.admin_chat_id)
     set_order_service(order_service)
     set_notification_service(notification_service)
+    set_payment_settings(settings)
 
     router.message.register(start_handler, CommandStart())
+    router.pre_checkout_query.register(pre_checkout_handler)
+    router.message.register(successful_payment_handler, F.successful_payment)
     router.message.register(fallback_handler, MainMenuSG.start)
 
     dp.include_router(router)
