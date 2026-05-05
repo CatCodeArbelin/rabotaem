@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone
 
 from aiogram.types import LabeledPrice, Message
@@ -17,6 +18,7 @@ order_service: OrderService | None = None
 notification_service: NotificationService | None = None
 payment_settings: Settings | None = None
 pending_orders: dict[str, Order] = {}
+logger = logging.getLogger(__name__)
 
 
 def set_order_service(service: OrderService) -> None:
@@ -122,7 +124,8 @@ async def process_order_confirm(_, __, manager: DialogManager):
                 ensure_ascii=False,
             ),
         )
-    except Exception:
+    except Exception as exc:
+        logger.exception("Failed to send Telegram invoice")
         await manager.event.answer(
             "Не удалось сформировать счет на оплату. Проверьте данные и попробуйте снова."
         )
