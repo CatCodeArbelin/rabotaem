@@ -18,12 +18,13 @@ from bot.dialogs import (
 )
 from bot.dialogs.payment import (
     has_pending_order_payload,
+    process_successful_payment,
     set_notification_service,
     set_order_service,
     set_payment_settings,
-    successful_payment_handler,
 )
 from bot.dialogs.states import MainMenuSG
+from bot.models import PaymentDetails
 from bot.services.notification_service import NotificationService
 from bot.services.order_service import OrderService
 
@@ -47,6 +48,24 @@ async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
     )
 
 
+async def successful_payment_message_handler(
+    message: Message,
+    dialog_manager: DialogManager,
+):
+    if message.successful_payment is None:
+        return
+
+    successful_payment = message.successful_payment
+    payment_details = PaymentDetails(
+        provider_payment_charge_id=successful_payment.provider_payment_charge_id,
+        telegram_payment_charge_id=successful_payment.telegram_payment_charge_id,
+        invoice_payload=successful_payment.invoice_payload,
+        total_amount=successful_payment.total_amount,
+        currency=successful_payment.currency,
+    )
+    await process_successful_payment(message, dialog_manager, payment_details)
+
+
 async def main():
     logging.basicConfig(level=logging.INFO)
     settings = load_settings()
@@ -67,7 +86,7 @@ async def main():
 
     router.message.register(start_handler, CommandStart())
     router.pre_checkout_query.register(pre_checkout_handler)
-    router.message.register(successful_payment_handler, F.successful_payment)
+    router.message.register(successful_payment_message_handler, F.successful_payment)
     router.message.register(fallback_handler, MainMenuSG.start)
 
     dp.include_router(router)

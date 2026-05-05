@@ -22,6 +22,17 @@ class OrderDraft:
 
 
 @dataclass
+class PaymentDetails:
+    """Данные успешного платежа Telegram Payments."""
+
+    provider_payment_charge_id: str
+    telegram_payment_charge_id: str
+    invoice_payload: str
+    total_amount: int
+    currency: str
+
+
+@dataclass
 class Order:
     """Полная модель заказа для передачи в сервис сохранения."""
 
@@ -35,3 +46,9 @@ class Order:
     delivery_data: str
     payment_type: str
     created_at: str
+    status: str = "pending_payment"
+    provider_payment_charge_id: str | None = None
+    telegram_payment_charge_id: str | None = None
+    invoice_payload: str | None = None
+    payment_total_amount: int | None = None
+    payment_currency: str | None = None

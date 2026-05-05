@@ -21,8 +21,17 @@ class NotificationService:
             f"  {line}" for line in str(delivery_data).splitlines()
         )
 
+        provider_charge_id = order.provider_payment_charge_id or "—"
+        telegram_charge_id = order.telegram_payment_charge_id or "—"
+        invoice_payload = order.invoice_payload or "—"
+        payment_amount = (
+            f"{order.payment_total_amount / 100:.2f} {order.payment_currency}"
+            if order.payment_total_amount is not None and order.payment_currency
+            else "—"
+        )
+
         return (
-            "Новый заказ 💖\n\n"
+            "Новый оплаченный заказ 💖\n\n"
             "Пользователь:\n"
             f"• Telegram ID: {order.user_id}\n"
             f"• Username: {username}\n"
@@ -35,7 +44,12 @@ class NotificationService:
             "• Данные:\n"
             f"{delivery_data_formatted}\n\n"
             "Оплата:\n"
-            f"• {order.payment_type}\n\n"
+            f"• Статус: {order.status}\n"
+            f"• Способ: {order.payment_type}\n"
+            f"• Сумма: {payment_amount}\n"
+            f"• YooKassa transaction ID: {provider_charge_id}\n"
+            f"• Telegram charge ID: {telegram_charge_id}\n"
+            f"• Payload: {invoice_payload}\n\n"
             "Дата:\n"
             f"• {order.created_at}"
         )

@@ -7,9 +7,9 @@ from aiogram_dialog import Dialog, DialogManager, Window
 from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Const
 
-from bot.config import PRODUCTS, Settings
+from bot.config import PRODUCTS, Settings, TEXTS
 from bot.dialogs.states import DeliverySG, MainMenuSG, PaymentSG
-from bot.models import Order
+from bot.models import Order, PaymentDetails
 from bot.services.notification_service import NotificationService
 from bot.services.order_service import OrderService
 
@@ -91,8 +91,12 @@ async def process_order_confirm(_, __, manager: DialogManager):
 
     try:
         product = _get_product(manager.start_data.get("product_id"))
-        order = _build_order(manager, "Оплачен через Telegram Payments")
+        order = _build_order(manager, "Telegram/YooKassa")
         payload = _build_order_payload(manager, order)
+        order.invoice_payload = payload
+        order.status = "pending_payment"
+        if order_service is not None:
+            order_service.create_order(order)
         pending_orders[payload] = order
 
         await manager.event.bot.send_invoice(
@@ -123,21 +127,33 @@ async def process_order_confirm(_, __, manager: DialogManager):
 
 
 def has_pending_order_payload(payload: str | None) -> bool:
-    return bool(payload) and payload in pending_orders
+    if not payload:
+        return False
+    if payload in pending_orders:
+        return True
+    if order_service is None:
+        return False
+
+    order = order_service.get_order_by_invoice_payload(payload)
+    return order is not None and order.status == "pending_payment"
 
 
-async def successful_payment_handler(message: Message, dialog_manager: DialogManager):
-    if order_service is None or notification_service is None:
+async def process_successful_payment(
+    message: Message,
+    dialog_manager: DialogManager,
+    payment_details: PaymentDetails,
+):
+    if order_service is None:
         await message.answer(
             "Оплата получена, но сервис заказа недоступен. Мы свяжемся с вами для подтверждения."
         )
         return
 
-    if message.successful_payment is None:
-        return
-
-    payload = message.successful_payment.invoice_payload
+    payload = payment_details.invoice_payload
     order = pending_orders.pop(payload, None)
+    if order is None:
+        order = order_service.get_order_by_invoice_payload(payload)
+
     if order is None:
         await message.answer(
             "Оплата получена, но заказ не найден. Мы свяжемся с вами для подтверждения."
@@ -145,8 +161,9 @@ async def successful_payment_handler(message: Message, dialog_manager: DialogMan
         return
 
     try:
-        order_service.create_order(order)
-        await notification_service.send_order_notification(message.bot, order)
+        order_service.mark_order_paid(order, payment_details)
+        if notification_service is not None:
+            await notification_service.send_order_notification(message.bot, order)
     except Exception:
         pending_orders[payload] = order
         await message.answer(
@@ -180,9 +197,7 @@ payment_dialog = Dialog(
         state=PaymentSG.payment,
     ),
     Window(
-        Const(
-            "Поздравляю 💖✨с покупкой, скоро твой браслет отправиться к тебе! Как только заказ будет зарегистрирован, тебе придет трек номер. Хорошего тебе дня🙏🏻"
-        ),
+        Const(TEXTS["order_done"]),
         Button(Const("Назад"), id="back_start", on_click=to_start),
         state=PaymentSG.done,
     ),
