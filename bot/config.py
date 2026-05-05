@@ -15,6 +15,11 @@ class ReceiptSettings:
     payment_subject: str
     payment_mode: str
 
+    @property
+    def has_customer_contact(self) -> bool:
+        """Проверяет, есть ли контакт покупателя для чека ЮKassa."""
+        return bool(self.customer_email or self.customer_phone)
+
     def build_provider_data(self, title: str, amount: int) -> dict[str, Any]:
         """Формирует provider_data платежа Telegram через ЮKassa."""
         return {"receipt": self.build_provider_receipt(title, amount)}
@@ -55,6 +60,7 @@ class Settings:
     bot_token: str
     payment_provider_token: str
     admin_chat_id: int | None
+    yookassa_send_receipt: bool
     yookassa_receipt: ReceiptSettings
 
 
@@ -183,12 +189,50 @@ def _get_optional_int_env(name: str) -> int | None:
         raise ValueError(f"{name} должен быть целым числом") from exc
 
 
+def _get_bool_env(name: str, default: bool = False) -> bool:
+    raw_value = os.getenv(name, "").strip().lower()
+    if not raw_value:
+        return default
+    if raw_value in {"1", "true", "yes", "y", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "n", "off"}:
+        return False
+
+    raise ValueError(f"{name} должен быть true или false")
+
+
+def _validate_yookassa_receipt_settings(
+    send_receipt: bool, receipt_settings: ReceiptSettings
+) -> None:
+    if not send_receipt:
+        return
+
+    if not receipt_settings.has_customer_contact:
+        raise ValueError(
+            "YOOKASSA_SEND_RECEIPT=true требует YOOKASSA_RECEIPT_EMAIL "
+            "или YOOKASSA_RECEIPT_PHONE: при need_email=True и "
+            "send_email_to_provider=True receipt должен содержать контакт покупателя. "
+            "Для магазинов без фискализации через Telegram установите "
+            "YOOKASSA_SEND_RECEIPT=false."
+        )
+    if receipt_settings.customer_email and "@" not in receipt_settings.customer_email:
+        raise ValueError("YOOKASSA_RECEIPT_EMAIL должен быть корректным email")
+    if receipt_settings.customer_phone:
+        normalized_phone = receipt_settings.customer_phone.removeprefix("+")
+        if not normalized_phone.isdigit():
+            raise ValueError(
+                "YOOKASSA_RECEIPT_PHONE должен содержать только цифры "
+                "и необязательный ведущий +"
+            )
+
+
 def load_settings() -> Settings:
     """Загружает настройки из переменных окружения."""
     bot_token = _get_required_env("BOT_TOKEN")
     payment_provider_token = _get_required_env("PAYMENT_PROVIDER_TOKEN")
     _log_payment_provider_token_mode(payment_provider_token)
     admin_chat_id = _get_optional_int_env("ADMIN_CHAT_ID")
+    yookassa_send_receipt = _get_bool_env("YOOKASSA_SEND_RECEIPT", default=False)
 
     yookassa_receipt = ReceiptSettings(
         customer_email=os.getenv("YOOKASSA_RECEIPT_EMAIL", "").strip() or None,
@@ -198,10 +242,12 @@ def load_settings() -> Settings:
         payment_subject=os.getenv("YOOKASSA_PAYMENT_SUBJECT", "commodity").strip() or "commodity",
         payment_mode=os.getenv("YOOKASSA_PAYMENT_MODE", "full_payment").strip() or "full_payment",
     )
+    _validate_yookassa_receipt_settings(yookassa_send_receipt, yookassa_receipt)
 
     return Settings(
         bot_token=bot_token,
         payment_provider_token=payment_provider_token,
         admin_chat_id=admin_chat_id,
+        yookassa_send_receipt=yookassa_send_receipt,
         yookassa_receipt=yookassa_receipt,
     )

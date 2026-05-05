@@ -56,16 +56,19 @@
 
 ### Фискализация ЮKassa
 
-Если в ЮKassa включены чеки, заполните данные для `provider_data.receipt`:
+По умолчанию бот **не передает** `provider_data.receipt` в `send_invoice`: это подходит магазинам, которые не фискализируют платежи через Telegram/ЮKassa или отправляют чеки другим способом. Чтобы ЮKassa сформировала чек из данных Telegram Payments, включите отправку receipt:
 
-- `YOOKASSA_RECEIPT_EMAIL` — email покупателя или магазина для чека, если email собирается заранее.
-- `YOOKASSA_RECEIPT_PHONE` — телефон покупателя для чека, если телефон собирается заранее.
-- `YOOKASSA_TAX_SYSTEM_CODE` — код системы налогообложения ЮKassa.
+- `YOOKASSA_SEND_RECEIPT` — `true`/`false`; по умолчанию `false`. Установите `true` только если магазин подключил фискализацию через ЮKassa и готов передавать чек в `provider_data.receipt`.
+
+При `YOOKASSA_SEND_RECEIPT=true` заполните обязательные данные для `provider_data.receipt` ЮKassa:
+
+- `YOOKASSA_RECEIPT_EMAIL` или `YOOKASSA_RECEIPT_PHONE` — контакт покупателя для отправки чека; нужен хотя бы один из этих контактов. В инвойсе включены `need_email=True` и `send_email_to_provider=True`, но receipt все равно не должен быть пустым по контактам: если покупательский контакт нельзя корректно подставить заранее, оставьте `YOOKASSA_SEND_RECEIPT=false` для магазинов без фискализации через Telegram.
 - `YOOKASSA_VAT_CODE` — ставка НДС для позиции в чеке; по умолчанию `1`.
 - `YOOKASSA_PAYMENT_SUBJECT` — признак предмета расчета; по умолчанию `commodity`.
 - `YOOKASSA_PAYMENT_MODE` — признак способа расчета; по умолчанию `full_payment`.
+- `YOOKASSA_TAX_SYSTEM_CODE` — код системы налогообложения ЮKassa; заполните, если у магазина в ЮKassa настроено несколько систем налогообложения или ЮKassa требует этот параметр для вашей конфигурации.
 
-Контактные данные и параметры фискализации загружаются в настройки приложения и используются для формирования структуры `provider_data.receipt`.
+Итоговая структура `provider_data.receipt` содержит объект `customer`, список `items` с описанием товара, количеством, суммой в RUB, `vat_code`, `payment_subject`, `payment_mode` и, если задано, `tax_system_code`.
 
 ## Troubleshooting платежей
 
