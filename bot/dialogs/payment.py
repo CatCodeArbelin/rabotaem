@@ -2,7 +2,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from aiogram.types import LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import LabeledPrice, Message
 from aiogram_dialog import Dialog, DialogManager, Window
 from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Const
@@ -122,8 +122,8 @@ async def process_order_confirm(_, __, manager: DialogManager):
         return
 
 
-async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
-    await pre_checkout_query.answer(ok=True)
+def has_pending_order_payload(payload: str | None) -> bool:
+    return bool(payload) and payload in pending_orders
 
 
 async def successful_payment_handler(message: Message, dialog_manager: DialogManager):

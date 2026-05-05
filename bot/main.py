@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, PreCheckoutQuery
 from aiogram_dialog import DialogManager, setup_dialogs
 
 from bot.config import TEXTS, load_settings
@@ -17,7 +17,7 @@ from bot.dialogs import (
     product_dialog,
 )
 from bot.dialogs.payment import (
-    pre_checkout_handler,
+    has_pending_order_payload,
     set_notification_service,
     set_order_service,
     set_payment_settings,
@@ -34,6 +34,17 @@ async def start_handler(message: Message, dialog_manager: DialogManager):
 
 async def fallback_handler(message: Message):
     await message.answer(TEXTS["unknown"])
+
+
+async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
+    if has_pending_order_payload(pre_checkout_query.invoice_payload):
+        await pre_checkout_query.answer(ok=True)
+        return
+
+    await pre_checkout_query.answer(
+        ok=False,
+        error_message="Не удалось проверить заказ",
+    )
 
 
 async def main():
