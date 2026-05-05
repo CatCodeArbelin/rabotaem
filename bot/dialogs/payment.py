@@ -101,29 +101,32 @@ async def process_order_confirm(_, __, manager: DialogManager):
             order_service.create_order(order)
         pending_orders[payload] = order
 
-        await manager.event.bot.send_invoice(
-            chat_id=manager.event.from_user.id,
-            title=product["name"],
-            description=product["description"],
-            payload=payload,
-            provider_token=payment_settings.payment_provider_token,
-            currency="RUB",
-            prices=[
+        invoice_kwargs = {
+            "chat_id": manager.event.from_user.id,
+            "title": product["name"],
+            "description": product["description"],
+            "payload": payload,
+            "provider_token": payment_settings.payment_provider_token,
+            "currency": "RUB",
+            "prices": [
                 LabeledPrice(label=product["name"], amount=product["price_new"] * 100),
             ],
             # Данные доставки уже собираются вручную в delivery_dialog, поэтому
             # Telegram shipping_query и адрес доставки в invoice не запрашиваем.
-            need_shipping_address=False,
-            need_email=True,
-            send_email_to_provider=True,
-            provider_data=json.dumps(
+            "need_shipping_address": False,
+            "need_email": True,
+            "send_email_to_provider": True,
+        }
+        if payment_settings.yookassa_send_receipt:
+            invoice_kwargs["provider_data"] = json.dumps(
                 payment_settings.yookassa_receipt.build_provider_data(
                     product["name"],
                     product["price_new"],
                 ),
                 ensure_ascii=False,
-            ),
-        )
+            )
+
+        await manager.event.bot.send_invoice(**invoice_kwargs)
     except Exception as exc:
         logger.exception("Failed to send Telegram invoice")
         await manager.event.answer(
