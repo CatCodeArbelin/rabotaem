@@ -1,11 +1,60 @@
 import os
 from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class ReceiptSettings:
+    """Настройки фискального чека для provider_data.receipt ЮKassa."""
+
+    customer_email: str | None
+    customer_phone: str | None
+    tax_system_code: int | None
+    vat_code: int
+    payment_subject: str
+    payment_mode: str
+
+    def build_provider_data(self, title: str, amount: int) -> dict[str, Any]:
+        """Формирует provider_data платежа Telegram через ЮKassa."""
+        return {"receipt": self.build_provider_receipt(title, amount)}
+
+    def build_provider_receipt(self, title: str, amount: int) -> dict[str, Any]:
+        """Формирует receipt для provider_data платежа Telegram через ЮKassa."""
+        customer: dict[str, str] = {}
+        if self.customer_email:
+            customer["email"] = self.customer_email
+        if self.customer_phone:
+            customer["phone"] = self.customer_phone
+
+        receipt: dict[str, Any] = {
+            "items": [
+                {
+                    "description": title,
+                    "quantity": "1.00",
+                    "amount": {
+                        "value": f"{amount:.2f}",
+                        "currency": "RUB",
+                    },
+                    "vat_code": self.vat_code,
+                    "payment_subject": self.payment_subject,
+                    "payment_mode": self.payment_mode,
+                }
+            ]
+        }
+        if customer:
+            receipt["customer"] = customer
+        if self.tax_system_code is not None:
+            receipt["tax_system_code"] = self.tax_system_code
+
+        return receipt
 
 
 @dataclass(frozen=True)
 class Settings:
     bot_token: str
+    payment_provider_token: str
     admin_chat_id: int | None
+    yookassa_receipt: ReceiptSettings
 
 
 TEXTS = {
@@ -91,18 +140,41 @@ PRODUCTS = {
 }
 
 
+def _get_required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise ValueError(f"Переменная окружения {name} не задана")
+    return value
+
+
+def _get_optional_int_env(name: str) -> int | None:
+    raw_value = os.getenv(name, "").strip()
+    if not raw_value:
+        return None
+    try:
+        return int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} должен быть целым числом") from exc
+
+
 def load_settings() -> Settings:
     """Загружает настройки из переменных окружения."""
-    bot_token = os.getenv("BOT_TOKEN", "")
-    admin_chat_id_raw = os.getenv("ADMIN_CHAT_ID", "")
+    bot_token = _get_required_env("BOT_TOKEN")
+    payment_provider_token = _get_required_env("PAYMENT_PROVIDER_TOKEN")
+    admin_chat_id = _get_optional_int_env("ADMIN_CHAT_ID")
 
-    if not bot_token:
-        raise ValueError("Переменная окружения BOT_TOKEN не задана")
-    admin_chat_id: int | None = None
-    if admin_chat_id_raw:
-        try:
-            admin_chat_id = int(admin_chat_id_raw)
-        except ValueError as exc:
-            raise ValueError("ADMIN_CHAT_ID должен быть целым числом") from exc
+    yookassa_receipt = ReceiptSettings(
+        customer_email=os.getenv("YOOKASSA_RECEIPT_EMAIL", "").strip() or None,
+        customer_phone=os.getenv("YOOKASSA_RECEIPT_PHONE", "").strip() or None,
+        tax_system_code=_get_optional_int_env("YOOKASSA_TAX_SYSTEM_CODE"),
+        vat_code=_get_optional_int_env("YOOKASSA_VAT_CODE") or 1,
+        payment_subject=os.getenv("YOOKASSA_PAYMENT_SUBJECT", "commodity").strip() or "commodity",
+        payment_mode=os.getenv("YOOKASSA_PAYMENT_MODE", "full_payment").strip() or "full_payment",
+    )
 
-    return Settings(bot_token=bot_token, admin_chat_id=admin_chat_id)
+    return Settings(
+        bot_token=bot_token,
+        payment_provider_token=payment_provider_token,
+        admin_chat_id=admin_chat_id,
+        yookassa_receipt=yookassa_receipt,
+    )
